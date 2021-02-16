@@ -160,11 +160,6 @@ pub fn nl() -> Literal {
 //     Literal::string(&PURE_PATCH[1..PURE_PATCH.len() - 1])
 // }
 
-#[inline]
-pub fn tsignore() -> Literal {
-    Literal::string(&TS_IGNORE_PATCH[1..TS_IGNORE_PATCH.len() - 1])
-}
-
 // #[inline]
 // pub fn vbar() -> Ident {
 //     ident_from_str(RESULT_BAR)

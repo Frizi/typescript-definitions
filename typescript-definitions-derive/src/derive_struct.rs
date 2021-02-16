@@ -11,9 +11,6 @@ use serde_derive_internals::ast;
 
 use super::{filter_visible, ParseContext, QuoteMaker, QuoteMakerKind};
 
-const DEFAULT_ERROR: Result<super::QuoteT, &'static str> =
-    Err("struct cannot have a handler or factory");
-
 impl<'a> ParseContext {
     pub(crate) fn derive_struct(
         &self,
@@ -41,8 +38,6 @@ impl<'a> ParseContext {
 
         QuoteMaker {
             source: self.field_to_ts(field),
-            enum_factory: DEFAULT_ERROR,
-            enum_handler: DEFAULT_ERROR,
             kind: QuoteMakerKind::Object,
         }
     }
@@ -50,8 +45,6 @@ impl<'a> ParseContext {
     fn derive_struct_unit(&self) -> QuoteMaker {
         QuoteMaker {
             source: quote!({}),
-            enum_factory: DEFAULT_ERROR,
-            enum_handler: DEFAULT_ERROR,
             kind: QuoteMakerKind::Object,
         }
     }
@@ -74,8 +67,6 @@ impl<'a> ParseContext {
 
         QuoteMaker {
             source: quote!({ #(#content);* }),
-            enum_factory: DEFAULT_ERROR,
-            enum_handler: DEFAULT_ERROR,
             kind: QuoteMakerKind::Object,
         }
     }
@@ -98,8 +89,6 @@ impl<'a> ParseContext {
 
         QuoteMaker {
             source: quote!([#(#content),*]),
-            enum_factory: DEFAULT_ERROR,
-            enum_handler: DEFAULT_ERROR,
             kind: QuoteMakerKind::Object,
         }
     }

@@ -198,7 +198,7 @@ mod macro_test {
                 Other,
             }
         );
-        assert_conversion!(tokens, "export enum CLikeEnum { \n    /**\n * a well-documented variant\n */\n One = \"One\" , \n    /**\n * another well-documented variant\n * this time with multiple lines\n */\n Other = \"Other\" }");
+        assert_conversion!(tokens, "export const enum CLikeEnum { \n    /**\n * a well-documented variant\n */\n One = \"One\" , \n    /**\n * another well-documented variant\n * this time with multiple lines\n */\n Other = \"Other\" }");
     }
 
     #[test]

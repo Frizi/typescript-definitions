@@ -33,10 +33,6 @@ type QuoteT = proc_macro2::TokenStream;
 
 struct QuoteMaker {
     pub source: QuoteT,
-    /// enum factory quote token stream
-    pub enum_factory: Result<QuoteT, &'static str>,
-    /// enum handler quote token stream
-    pub enum_handler: Result<QuoteT, &'static str>,
     pub kind: QuoteMakerKind,
 }
 
@@ -48,61 +44,24 @@ enum QuoteMakerKind {
 
 /* #region helpers */
 
-#[allow(unused)]
-fn is_wasm32() -> bool {
-    use std::env;
-    if let Ok(ref v) = env::var("WASM32") {
-        return v == "1";
-    }
-    let mut t = env::args().skip_while(|t| t != "--target").skip(1);
-    if let Some(target) = t.next() {
-        if target.contains("wasm32") {
-            return true;
-        }
-    };
-    false
-}
-
 /// derive proc_macro to expose Typescript definitions to `wasm-bindgen`.
 ///
 /// Please see documentation at [crates.io](https://crates.io/crates/typescript-definitions).
-#[proc_macro_derive(TypeScriptDefinition, attributes(ts))]
+#[proc_macro_derive(TypeScriptDef, attributes(ts))]
 pub fn derive_typescript_definition(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = QuoteT::from(input);
     do_derive_typescript_definition(input).into()
-}
-
-/// derive proc_macro to expose Typescript definitions as a static function.
-///
-/// Please see documentation at [crates.io](https://crates.io/crates/typescript-definitions).
-#[proc_macro_derive(TypeScriptify, attributes(ts))]
-pub fn derive_type_script_ify(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = QuoteT::from(input);
-    do_derive_type_script_ify(input).into()
 }
 
 fn do_derive_typescript_definition(input: QuoteT) -> QuoteT {
     let tsy = Typescriptify::new(input);
     let parsed = tsy.parse();
     let export_source = parsed.export_type_definition_source();
-    let export_string = format!(
-        // we're still going to include the values so we can separate them out in an additional step for webpack
-        // the alternative to this seems like it might be to fork wasm-bindgen... which I don't want to do.
-        "/*StartDefinitionFor__{}__*/\n{}\ntype __StartValuesFor__{}__ = `\n{}\n`/*EndValuesFor__{}__*/\n/*EndDefinitionFor__{}__*/",
-        parsed.ident.as_str(),
-        export_source.declarations,
-        parsed.ident.as_str(),
-        export_source.values.replace("`", "\\`"),
-        parsed.ident.as_str(),
-        parsed.ident.as_str()
-    );
-    let name = tsy.ident.to_string().to_uppercase();
-
-    let export_ident = ident_from_str(&format!("TS_EXPORT_{}", name));
+    let export_string = export_source.declarations;
 
     let mut q = quote! {
         #[wasm_bindgen(typescript_custom_section)]
-        pub const #export_ident : &'static str = #export_string;
+        pub const _ : &'static str = #export_string;
     };
 
     // just to allow testing... only `--features=test` seems to work
@@ -116,72 +75,17 @@ fn do_derive_typescript_definition(input: QuoteT) -> QuoteT {
 
         ));
     }
-    if let Some("1") = option_env!("TFY_SHOW_CODE") {
+    if let Some("1") = option_env!("TSDEF_SHOW_CODE") {
         eprintln!("{}", patch(&q.to_string()));
     }
 
     q
 }
 
-fn do_derive_type_script_ify(input: QuoteT) -> QuoteT {
-    let tsy = Typescriptify::new(input);
-    let parsed = tsy.parse();
-    let export_source = parsed.export_type_definition_source();
-    let export_string = format!("{}\n{}", export_source.declarations, export_source.values);
-    let ident = &tsy.ident;
-
-    let (impl_generics, ty_generics, where_clause) = tsy.generics.split_for_impl();
-
-    let type_script_enum_factory = if cfg!(feature = "type-enum-factories") {
-        let factory = match parsed.export_type_factory_source() {
-            Ok(ref txt) => quote!(Ok(::std::borrow::Cow::Borrowed(#txt))),
-            Err(err_msg) => quote!(Err(#err_msg)),
-        };
-        quote!(
-            fn type_script_enum_factory() -> Result<::std::borrow::Cow<'static,str>, &'static str> {
-                    #factory
-            }
-        )
-    } else {
-        quote!()
-    };
-
-    let type_script_enum_handlers = if cfg!(feature = "type-enum-handlers") {
-        let handlers = match parsed.export_type_handler_source() {
-            Ok(ref txt) => quote!(Ok(::std::borrow::Cow::Borrowed(#txt))),
-            Err(err_msg) => quote!(Err(#err_msg)),
-        };
-        quote!(
-            fn type_script_enum_handlers() -> Result<::std::borrow::Cow<'static,str>, &'static str> {
-                    #handlers
-            }
-        )
-    } else {
-        quote!()
-    };
-    let ret = quote! {
-
-        impl #impl_generics ::typescript_definitions::TypeScriptifyTrait for #ident #ty_generics #where_clause {
-            fn type_script_ify() ->  ::std::borrow::Cow<'static,str> {
-                ::std::borrow::Cow::Borrowed(#export_string)
-            }
-            #type_script_enum_factory
-            #type_script_enum_handlers
-        }
-
-    };
-    if let Some("1") = option_env!("TFY_SHOW_CODE") {
-        eprintln!("{}", patch(&ret.to_string()));
-    }
-
-    ret
-}
-
 /* #endregion helpers */
 
 pub(crate) struct Typescriptify {
     ident: syn::Ident,
-    generics: syn::Generics,
     input: DeriveInput,
 }
 
@@ -203,7 +107,6 @@ impl Typescriptify {
         cx.check().unwrap();
 
         Self {
-            generics: container.generics.clone(),
             ident: container.ident,
             input,
         }
@@ -263,50 +166,14 @@ struct TSOutput {
 struct TSDefinitions {
     /// export type A = [number];
     pub declarations: String,
-    /// export const a: A = [1];
-    pub values: String,
 }
 
 impl TSOutput {
-    fn export_type_handler_source(&self) -> Result<String, &'static str> {
-        self.q_maker
-            .enum_handler
-            .as_ref()
-            .map(|content| {
-                format!(
-                    "{}{}",
-                    self.pctxt.global_attrs.to_comment_str(),
-                    patch(&content.to_string())
-                )
-            })
-            .map_err(|e| *e)
-    }
-
-    fn export_type_factory_source(&self) -> Result<String, &'static str> {
-        self.q_maker
-            .enum_factory
-            .as_ref()
-            .map(|content| {
-                format!(
-                    "{}{}",
-                    self.pctxt.global_attrs.to_comment_str(),
-                    patch(&content.to_string())
-                )
-            })
-            .map_err(|e| *e)
-    }
-
     fn export_type_definition_source(&self) -> TSDefinitions {
         match self.q_maker.kind {
             QuoteMakerKind::Enum => TSDefinitions {
                 declarations: format!(
-                    "{}export enum {} {}",
-                    self.pctxt.global_attrs.to_comment_str(),
-                    self.ident,
-                    patch(&self.q_maker.source.to_string())
-                ),
-                values: format!(
-                    "{}export enum {} {}",
+                    "{}export const enum {} {}",
                     self.pctxt.global_attrs.to_comment_str(),
                     self.ident,
                     patch(&self.q_maker.source.to_string())
@@ -319,13 +186,6 @@ impl TSOutput {
                     self.ident,
                     patch(&self.q_maker.source.to_string()),
                 ),
-                values: format!(
-                    "{}\n{}",
-                    self.export_type_factory_source()
-                        .expect("factory exists for union"),
-                    self.export_type_handler_source()
-                        .expect("handler exists for union"),
-                ),
             },
             QuoteMakerKind::Object => TSDefinitions {
                 declarations: format!(
@@ -333,13 +193,6 @@ impl TSOutput {
                     self.pctxt.global_attrs.to_comment_str(),
                     self.ident,
                     patch(&self.q_maker.source.to_string()),
-                ),
-                values: format!(
-                    "{}export const {} = (check: {}) => check\n",
-                    // check create function
-                    self.pctxt.global_attrs.to_comment_str(),
-                    self.ident,
-                    self.ident,
                 ),
             },
         }

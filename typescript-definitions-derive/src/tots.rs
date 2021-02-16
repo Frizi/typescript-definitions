@@ -153,9 +153,9 @@ impl<'a> FieldContext<'a> {
             Infer(..) | Macro(..) | Verbatim(..) => quote! { any },
             // Recommended way to test exhaustiveness without breaking API https://github.com/dtolnay/syn/releases/tag/1.0.60
             #[cfg(test)]
-            Expr::__TestExhaustive(_) => unimplemented!(),
+            __TestExhaustive(_) => unimplemented!(),
             #[cfg(not(test))]
-            _ => quote! { any }
+            _ => quote! { any },
         }
     }
 
