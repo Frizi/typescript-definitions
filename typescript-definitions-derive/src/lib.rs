@@ -58,10 +58,13 @@ fn do_derive_typescript_definition(input: QuoteT) -> QuoteT {
     let parsed = tsy.parse();
     let export_source = parsed.export_type_definition_source();
     let export_string = export_source.declarations;
-
+    let module_name = ident_from_str(&format!("{}___typescript_definition_module", &tsy.ident));
     let mut q = quote! {
-        #[wasm_bindgen(typescript_custom_section)]
-        pub const _ : &'static str = #export_string;
+        mod #module_name {
+            use wasm_bindgen::prelude::*;
+            #[wasm_bindgen(typescript_custom_section)]
+            pub const _ : &'static str = #export_string;
+        }
     };
 
     // just to allow testing... only `--features=test` seems to work
@@ -72,7 +75,6 @@ fn do_derive_typescript_definition(input: QuoteT) -> QuoteT {
             fn #typescript_ident ( ) -> &'static str {
                 #export_string
             }
-
         ));
     }
     if let Some("1") = option_env!("TSDEF_SHOW_CODE") {
