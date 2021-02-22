@@ -72,29 +72,6 @@ impl<'a> ParseContext {
             .filter(|v| !v.attrs.skip_serializing())
             .collect();
 
-        // is typescript enum compatible
-        let is_enum = taginfo.tag.is_none()
-            && taginfo.content.is_none()
-            && variants.iter().all(|v| matches!(v.style, ast::Style::Unit));
-
-        if is_enum {
-            let comments = variants
-                .iter()
-                .map(|variant| crate::attrs::Attrs::from_variant(variant).to_comment_attrs())
-                .collect::<Vec<_>>();
-            let v = &variants
-                .into_iter()
-                .map(|v| v.attrs.name().serialize_name()) // use serde name instead of v.ident
-                .collect::<Vec<_>>();
-
-            let k = v.iter().map(|v| ident_from_str(&v)).collect::<Vec<_>>();
-
-            return QuoteMaker {
-                source: quote! ( { #(#(#comments)* #k = #v),* } ),
-                kind: QuoteMakerKind::Enum,
-            };
-        }
-
         let content: Vec<(&Variant, VariantQuoteMaker)> = variants
             .iter()
             .map(|variant| {

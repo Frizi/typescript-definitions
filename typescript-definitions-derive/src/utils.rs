@@ -12,6 +12,10 @@ pub fn ident_from_str(s: &str) -> Ident {
     syn::Ident::new(s, Span::call_site())
 }
 
+pub fn literal_from_string(s: &str) -> syn::LitStr {
+    syn::LitStr::new(s, Span::call_site())
+}
+
 pub fn field_type_name(ty: &syn::Type) -> Option<String> {
     use syn::Type::Path;
     match ty {

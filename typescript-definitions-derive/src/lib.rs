@@ -38,7 +38,6 @@ struct QuoteMaker {
 
 enum QuoteMakerKind {
     Object,
-    Enum,
     Union,
 }
 
@@ -57,8 +56,9 @@ fn do_derive_typescript_definition(input: QuoteT) -> QuoteT {
     let tsy = Typescriptify::new(input);
     let parsed = tsy.parse();
     let export_source = parsed.export_type_definition_source();
-    let export_string = export_source.declarations;
+    let export_string = literal_from_string(&export_source.declarations);
     let module_name = ident_from_str(&format!("{}___typescript_definition_module", &tsy.ident));
+
     let mut q = quote! {
         mod #module_name {
             use wasm_bindgen::prelude::*;
@@ -173,14 +173,6 @@ struct TSDefinitions {
 impl TSOutput {
     fn export_type_definition_source(&self) -> TSDefinitions {
         match self.q_maker.kind {
-            QuoteMakerKind::Enum => TSDefinitions {
-                declarations: format!(
-                    "{}export const enum {} {}",
-                    self.pctxt.global_attrs.to_comment_str(),
-                    self.ident,
-                    patch(&self.q_maker.source.to_string())
-                ),
-            },
             QuoteMakerKind::Union => TSDefinitions {
                 declarations: format!(
                     "{}export type {} = {}",

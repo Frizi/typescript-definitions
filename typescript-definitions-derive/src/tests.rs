@@ -190,15 +190,16 @@ mod macro_test {
     #[test]
     fn doc_c_like_enum_variant() {
         let tokens = quote!(
+            /// a well-documented enum
             enum CLikeEnum {
-                /// a well-documented variant
                 One,
-                /// another well-documented variant
-                /// this time with multiple lines
                 Other,
             }
         );
-        assert_conversion!(tokens, "export const enum CLikeEnum { \n    /**\n * a well-documented variant\n */\n One = \"One\" , \n    /**\n * another well-documented variant\n * this time with multiple lines\n */\n Other = \"Other\" }");
+        assert_conversion!(
+            tokens,
+            "/**\n * a well-documented enum\n */\nexport type CLikeEnum = \n | \"One\" \n | \"Other\""
+        );
     }
 
     #[test]
